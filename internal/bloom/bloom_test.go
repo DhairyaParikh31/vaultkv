@@ -129,7 +129,64 @@ func TestByteSizeGrowsWithKeys(t *testing.T) {
 	t.Logf("1000 keys → %d bytes filter", fLarge.ByteSize())
 }
 
+// TestMurmurHash3Deterministic verifies that MurmurHash3 is deterministic —
+// same input always produces same output.
+func TestMurmurHash3Deterministic(t *testing.T) {
+	key := []byte("deterministic-test-key")
 
+	h1 := murmurHash3(key, seed0)
+	h2 := murmurHash3(key, seed0)
+
+	if h1 != h2 {
+		t.Errorf("hash is not deterministic: %d != %d", h1, h2)
+	}
+}
+
+// TestMurmurHash3DifferentSeeds verifies that different seeds produce
+// different hash values for the same key — essential for Bloom filter
+// independence.
+func TestMurmurHash3DifferentSeeds(t *testing.T) {
+	key := []byte("seed-test")
+
+	h0 := murmurHash3(key, seed0)
+	h1 := murmurHash3(key, seed1)
+	h2 := murmurHash3(key, seed2)
+
+	if h0 == h1 || h1 == h2 || h0 == h2 {
+		t.Errorf("seeds should produce different hashes: %d %d %d", h0, h1, h2)
+	}
+}
+
+// TestHighBitsPerKey verifies that a higher bitsPerKey value reduces
+// the false positive rate as expected.
+func TestHighBitsPerKey(t *testing.T) {
+	n := 1000
+	keys := makeKeys(n)
+
+	// Build two filters: standard (9.6) vs high precision (19.2).
+	fStandard := Build(keys, 9.6)
+	fHighPrec := Build(keys, 19.2)
+
+	trials := 10_000
+	fpStandard, fpHighPrec := 0, 0
+
+	for i := 0; i < trials; i++ {
+		absent := []byte(fmt.Sprintf("not-inserted-%d", i+n))
+		if fStandard.MayContain(absent) {
+			fpStandard++
+		}
+		if fHighPrec.MayContain(absent) {
+			fpHighPrec++
+		}
+	}
+
+	t.Logf("9.6 bits/key FPP:  %.2f%%", float64(fpStandard)/float64(trials)*100)
+	t.Logf("19.2 bits/key FPP: %.2f%%", float64(fpHighPrec)/float64(trials)*100)
+
+	if fpHighPrec >= fpStandard {
+		t.Error("higher bits/key should produce fewer false positives")
+	}
+}
 
 // ── Benchmarks ─────────────────────────────────────────────────────────
 
@@ -152,7 +209,35 @@ func BenchmarkMayContainHit(b *testing.B) {
 	}
 }
 
+// BenchmarkMayContainMiss benchmarks queries for keys NOT in the filter.
+// This is the critical path — most Bloom filter queries in VaultKV
+// are for keys that do not exist in a given SSTable.
+func BenchmarkMayContainMiss(b *testing.B) {
+	keys := makeKeys(100_000)
+	f := Build(keys, 9.6)
 
+	// Generate absent keys.
+	absent := make([][]byte, 10_000)
+	for i := range absent {
+		absent[i] = []byte(fmt.Sprintf("absent-%d", i))
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		f.MayContain(absent[i%len(absent)])
+	}
+}
+
+// BenchmarkEncodeDecode benchmarks the Encode/Decode round trip.
+func BenchmarkEncodeDecode(b *testing.B) {
+	keys := makeKeys(10_000)
+	f := Build(keys, 9.6)
+	encoded := f.Encode()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		Decode(encoded)
+	}
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
