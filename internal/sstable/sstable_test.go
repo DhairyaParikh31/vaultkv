@@ -315,3 +315,55 @@ func TestNumEntries(t *testing.T) {
 		t.Errorf("NumEntries: want %d got %d", len(entries), r.NumEntries())
 	}
 }
+
+// BenchmarkGet benchmarks random point lookups in a 10K-entry SSTable.
+func BenchmarkGet(b *testing.B) {
+	dir := b.TempDir()
+	mem := memtable.New()
+
+	n := 10_000
+	for i := 0; i < n; i++ {
+		key := []byte(fmt.Sprintf("key-%08d", i))
+		val := []byte(fmt.Sprintf("val-%08d", i))
+		mem.Set(key, val)
+	}
+
+	if err := WriteFromMemTable(dir, 1, mem, defaultBlockSize); err != nil {
+		b.Fatalf("WriteFromMemTable: %v", err)
+	}
+
+	path := filepath.Join(dir, fmt.Sprintf("%016x.sst", 1))
+	r, err := Open(path)
+	if err != nil {
+		b.Fatalf("Open: %v", err)
+	}
+	defer r.Close()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		key := []byte(fmt.Sprintf("key-%08d", i%n))
+		r.Get(key)
+	}
+}
+
+// BenchmarkGetAbsent benchmarks lookups for keys not in the SSTable.
+// This exercises the Bloom filter's ability to avoid disk reads.
+func BenchmarkGetAbsent(b *testing.B) {
+	dir := b.TempDir()
+	mem := memtable.New()
+
+	for i := 0; i < 10_000; i++ {
+		mem.Set([]byte(fmt.Sprintf("key-%08d", i)), []byte("val"))
+	}
+
+	WriteFromMemTable(dir, 1, mem, defaultBlockSize)
+	path := filepath.Join(dir, fmt.Sprintf("%016x.sst", 1))
+	r, _ := Open(path)
+	defer r.Close()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// These keys are NOT in the SSTable.
+		r.Get([]byte(fmt.Sprintf("absent-%08d", i)))
+	}
+}
