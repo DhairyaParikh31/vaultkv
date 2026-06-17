@@ -270,20 +270,14 @@ func (w *Writer) Finish() error {
 	indexOffset := w.offset
 
 	for _, ie := range w.index {
-		// Index entry format:
-		// [key_len uint32 = 4 bytes]
-		// [key bytes = keyLen bytes]
-		// [block_offset uint64 = 8 bytes]
-		// [block_len uint32 = 4 bytes]
-		// Total: 4 + keyLen + 8 + 4 = 16 + keyLen bytes
+		// [key_len uint32][key bytes][block_offset uint64][block_len uint32]
 		keyLen := uint32(len(ie.firstKey))
-		entrySize := 4 + int(keyLen) + 8 + 4 // explicit — no constant
-		entry := make([]byte, entrySize)
+		entry := make([]byte, indexEntryHeaderSize+int(keyLen))
 
 		binary.LittleEndian.PutUint32(entry[0:4], keyLen)
 		copy(entry[4:4+keyLen], ie.firstKey)
-		binary.LittleEndian.PutUint64(entry[4+keyLen:4+keyLen+8], ie.blockOffset)
-		binary.LittleEndian.PutUint32(entry[4+keyLen+8:4+keyLen+12], ie.blockLen)
+		binary.LittleEndian.PutUint64(entry[4+keyLen:12+keyLen], ie.blockOffset)
+		binary.LittleEndian.PutUint32(entry[12+keyLen:16+keyLen], ie.blockLen)
 
 		n, err := w.buf.Write(entry)
 		if err != nil {

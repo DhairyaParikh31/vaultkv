@@ -9,15 +9,15 @@ import (
 func TestSetAndGet(t *testing.T) {
 	m := New()
 
-	m.Set([]byte("name"), []byte("alice"))
-	m.Set([]byte("city"), []byte("atlanta"))
+	m.Set([]byte("name"), []byte("John"))
+	m.Set([]byte("city"), []byte("vadodara"))
 
 	entry, found := m.Get([]byte("name"))
 	if !found {
 		t.Fatal("expected to find 'name'")
 	}
-	if string(entry.Value) != "alice" {
-		t.Errorf("expected 'alice' got %q", entry.Value)
+	if string(entry.Value) != "John" {
+		t.Errorf("expected 'John' got %q", entry.Value)
 	}
 	if entry.Deleted {
 		t.Error("expected entry to not be deleted")

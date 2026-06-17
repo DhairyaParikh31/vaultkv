@@ -61,7 +61,7 @@ func TestRunOnceReducesFileCount(t *testing.T) {
 		buildSSTable(t, e, i, map[string]string{fmt.Sprintf("animal%d", i): fmt.Sprintf("species%d", i)}, nil)
 	}
 	before := len(e.Files())
-	compacted, err := e.RunOnce()
+	compacted, err := e.RunOnce(5)
 	if err != nil {
 		t.Fatalf("RunOnce: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestMergePreservesAllKeys(t *testing.T) {
 		}
 		buildSSTable(t, e, i, entries, nil)
 	}
-	_, err := e.RunOnce()
+	_, err := e.RunOnce(5)
 	if err != nil {
 		t.Fatalf("RunOnce: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestMergeDeduplicatesKeys(t *testing.T) {
 	buildSSTable(t, e, 2, map[string]string{"shared-key": "middle-value", "unique-2": "v2"}, nil)
 	buildSSTable(t, e, 3, map[string]string{"shared-key": "newest-value", "unique-3": "v3"}, nil)
 	buildSSTable(t, e, 4, map[string]string{"unique-4": "v4"}, nil)
-	_, err := e.RunOnce()
+	_, err := e.RunOnce(5)
 	if err != nil {
 		t.Fatalf("RunOnce: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestRunOnceNoCompactionNeeded(t *testing.T) {
 	for i := uint64(1); i <= 2; i++ {
 		buildSSTable(t, e, i, map[string]string{fmt.Sprintf("k%d", i): "v"}, nil)
 	}
-	compacted, err := e.RunOnce()
+	compacted, err := e.RunOnce(5)
 	if err != nil {
 		t.Fatalf("RunOnce: %v", err)
 	}
@@ -203,6 +203,6 @@ func BenchmarkRunOnce(b *testing.B) {
 			e.AddFile(&FileMetadata{FileID: id, Path: path, Size: info.Size()})
 		}
 		b.StartTimer()
-		e.RunOnce()
+		e.RunOnce(5)
 	}
 }

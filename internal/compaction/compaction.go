@@ -55,7 +55,6 @@ type Engine struct {
 	mu        sync.RWMutex
 	dir       string
 	files     []*FileMetadata
-	nextID    uint64
 	threshold int
 	running   bool
 }
@@ -68,7 +67,6 @@ func NewEngine(dir string, threshold int) *Engine {
 	return &Engine{
 		dir:       dir,
 		threshold: threshold,
-		nextID:    1,
 	}
 }
 
@@ -77,9 +75,6 @@ func (e *Engine) AddFile(meta *FileMetadata) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.files = append(e.files, meta)
-	if meta.FileID >= e.nextID {
-		e.nextID = meta.FileID + 1
-	}
 }
 
 // Files returns a snapshot of the current SSTable file list.
@@ -106,7 +101,7 @@ func (e *Engine) NeedsCompaction() bool {
 }
 
 // RunOnce performs one round of size-tiered compaction if needed.
-func (e *Engine) RunOnce() (int, error) {
+func (e *Engine) RunOnce(outputID uint64) (int, error) {
 	e.mu.Lock()
 
 	if e.running {
@@ -130,11 +125,9 @@ func (e *Engine) RunOnce() (int, error) {
 	}
 
 	e.running = true
-	nextID := e.nextID
-	e.nextID++
 	e.mu.Unlock()
 
-	outputPath, outputMeta, err := e.merge(selected, nextID)
+	outputPath, outputMeta, err := e.merge(selected, outputID)
 	if err != nil {
 		e.mu.Lock()
 		e.running = false

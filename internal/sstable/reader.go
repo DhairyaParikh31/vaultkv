@@ -257,24 +257,15 @@ func parseIndex(data []byte) ([]indexEntry, error) {
 	offset := 0
 
 	for offset < len(data) {
-		// Need 4 bytes for keyLen.
 		if offset+4 > len(data) {
-			break // clean end of index
+			return nil, fmt.Errorf("truncated index entry at offset %d", offset)
 		}
 
 		keyLen := binary.LittleEndian.Uint32(data[offset : offset+4])
 		offset += 4
 
-		// Sanity check keyLen — a corrupt keyLen could be huge.
-		if keyLen > 65536 {
-			return nil, fmt.Errorf("index entry: suspicious keyLen %d at offset %d", keyLen, offset)
-		}
-
-		// Need keyLen bytes + 8 (blockOffset) + 4 (blockLen).
-		needed := int(keyLen) + 12
-		if offset+needed > len(data) {
-			// Partial entry at end — stop cleanly.
-			break
+		if offset+int(keyLen)+12 > len(data) {
+			return nil, fmt.Errorf("index entry payload exceeds buffer at offset %d", offset)
 		}
 
 		firstKey := make([]byte, keyLen)

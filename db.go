@@ -264,7 +264,7 @@ func (db *DB) flushIfNeeded() {
 	}
 	db.immutable = db.active
 	db.active = memtable.New()
-	fileID := atomic.AddUint64(&db.nextFileID, 1)
+	fileID := db.nextSSTableID()
 	db.mu.Unlock()
 
 	if err := db.flushMemTable(db.immutable, fileID); err != nil {
@@ -315,7 +315,8 @@ func (db *DB) compactionLoop() {
 			return
 		case <-db.compactChan:
 			if db.compact.NeedsCompaction() {
-				if _, err := db.compact.RunOnce(); err != nil {
+				outputID := db.nextSSTableID()
+				if _, err := db.compact.RunOnce(outputID); err != nil {
 					fmt.Printf("vaultkv: compaction error: %v\n", err)
 				}
 				db.reloadReaders()
@@ -420,4 +421,8 @@ func (db *DB) reloadReaders() {
 	for _, r := range old {
 		r.Close()
 	}
+}
+
+func (db *DB) nextSSTableID() uint64 {
+	return atomic.AddUint64(&db.nextFileID, 1)
 }

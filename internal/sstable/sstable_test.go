@@ -256,7 +256,7 @@ func TestWriteFromMemTable(t *testing.T) {
 	dir := t.TempDir()
 	mem := memtable.New()
 
-	mem.Set([]byte("city"), []byte("atlanta"))
+	mem.Set([]byte("city"), []byte("vadodara"))
 	mem.Set([]byte("name"), []byte("vaultkv"))
 	mem.Delete([]byte("old"))
 	mem.Set([]byte("version"), []byte("1.0"))
@@ -274,7 +274,7 @@ func TestWriteFromMemTable(t *testing.T) {
 
 	// city should be found.
 	val, deleted, err := r.Get([]byte("city"))
-	if err != nil || deleted || string(val) != "atlanta" {
+	if err != nil || deleted || string(val) != "vadodara" {
 		t.Errorf("city: val=%q deleted=%v err=%v", val, deleted, err)
 	}
 
